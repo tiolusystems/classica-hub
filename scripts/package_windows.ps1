@@ -2,4 +2,4 @@ param([string]$Python = "python")
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
-& $Python -m PyInstaller --noconfirm --clean --onedir --name ClassicaHub scripts\hub_entry.py
+& $Python -m PyInstaller --noconfirm --clean --windowed --onedir --name ClassicaHub scripts\hub_entry.py
