@@ -29,10 +29,10 @@ def launch(module: str) -> None:
     command = commands()[module]
     if not isinstance(command, list) or not command or not all(isinstance(x, str) for x in command):
         raise ValueError(f"Configure o comando do módulo {module} em {config_path()}.")
-    executable = Path(command[0])
-    if not executable.is_file():
+    executable = Path(command[0]).expanduser()
+    if not executable.is_absolute() or not executable.is_file():
         raise ValueError(f"Módulo {module} não encontrado: {executable}")
-    subprocess.Popen(command, shell=False, cwd=str(executable.parent))
+    subprocess.Popen([str(executable), *command[1:]], shell=False, cwd=str(executable.parent))
 
 
 def main() -> None:
