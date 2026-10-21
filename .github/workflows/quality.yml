@@ -2,7 +2,7 @@ name: quality
 
 on:
   push:
-    branches: ["dev/**"]
+    branches: ["dev/**", main]
   pull_request:
     branches: [main]
 
@@ -56,3 +56,34 @@ jobs:
         with:
           name: ClassicaHub-Windows-x64
           path: dist/ClassicaHub
+
+  release:
+    name: Publish official Windows release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [test, package, windows-package]
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: ClassicaHub-Windows-x64
+          path: stage/ClassicaHub-1.0.0
+      - name: Pack independently, checksum and publish
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cd stage
+          zip -q -r "../dist/ClassicaHub-1.0.0-Windows-x64.zip" "ClassicaHub-1.0.0"
+          cd ..
+          cd dist
+          sha256sum "ClassicaHub-1.0.0-Windows-x64.zip" > "ClassicaHub-1.0.0-Windows-x64.zip.sha256"
+          sha256sum -c "ClassicaHub-1.0.0-Windows-x64.zip.sha256"
+          if gh release view v1.0.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "v1.0.0 already exists; release remains immutable."
+            exit 0
+          fi
+          gh release create v1.0.0 "ClassicaHub-1.0.0-Windows-x64.zip" "ClassicaHub-1.0.0-Windows-x64.zip.sha256" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "ClassicaHub 1.0.0" --notes "Versão Windows x64 independente, sem assinatura digital. Instale apenas conteúdos autorizados."
