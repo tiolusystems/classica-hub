@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tkinter as tk
 from pathlib import Path
 from tkinter import filedialog, messagebox
@@ -35,11 +36,30 @@ def save_commands(value: dict) -> None:
 
 
 def discovered(module: str) -> Path | None:
-    base = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".local")) / "Programs"
-    names = {"youtube": ("Classica", "Clássica.exe"), "x": ("ClassicaX", "ClassicaX.exe")}
-    folder, executable = names[module]
-    candidate = base / folder / executable
-    return candidate if candidate.is_file() else None
+    """Discover portable X and existing YouTube without changing either installation."""
+    local = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".local"))
+    programs = local / "Programs"
+    if module == "x":
+        # When extracted from the homologation ZIP, Hub and X are siblings.
+        root = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
+        candidates = (
+            root.parent / "X" / "ClassicaX.exe",
+            root / "X" / "ClassicaX.exe",
+            programs / "ClassicaX" / "ClassicaX.exe",
+        )
+    elif module == "youtube":
+        versions = programs / "Classica" / "versoes"
+        installed = list(versions.glob("Classica-*/Clássica.exe")) if versions.is_dir() else []
+        def version_key(candidate: Path) -> tuple[int, ...]:
+            try:
+                return tuple(int(part) for part in candidate.parent.name.removeprefix("Classica-").split("."))
+            except ValueError:
+                return (0,)
+        installed.sort(key=version_key, reverse=True)
+        candidates = (programs / "Classica" / "Clássica.exe", *installed)
+    else:
+        raise ValueError("Módulo desconhecido.")
+    return next((path.resolve() for path in candidates if path.is_file()), None)
 
 
 def configure(module: str, executable: str | Path) -> Path:
