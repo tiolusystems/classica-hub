@@ -11,6 +11,10 @@ requires-python = ">=3.11"
 [project.optional-dependencies]
 test = ["pytest==8.3.5"]
 build = ["build==1.2.2.post1"]
+windows = ["pyinstaller==6.16.0"]
 
 [project.scripts]
 classica-hub = "classica_hub.app:main"
+
+[tool.setuptools]
+packages = ["classica_hub"]

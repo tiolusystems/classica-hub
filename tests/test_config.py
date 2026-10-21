@@ -13,3 +13,10 @@ def test_launch_rejects_relative_executable(monkeypatch):
     monkeypatch.setattr(app, "commands", lambda: {"youtube": ["Classica.exe"], "x": []})
     with pytest.raises(ValueError):
         app.launch("youtube")
+
+
+def test_configure_saves_selected_executable(monkeypatch, tmp_path):
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    executable = tmp_path / "ClassicaX.exe"; executable.write_bytes(b"placeholder")
+    assert app.configure("x", executable) == executable.resolve()
+    assert app.commands()["x"] == [str(executable.resolve())]
