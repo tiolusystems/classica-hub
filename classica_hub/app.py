@@ -42,9 +42,13 @@ def discovered(module: str) -> Path | None:
     if module == "x":
         # When extracted from the homologation ZIP, Hub and X are siblings.
         root = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
+        versions = programs / "ClassicaX" / "versoes"
+        installed = list(versions.glob("ClassicaX-*/ClassicaX.exe")) if versions.is_dir() else []
+        installed.sort(key=lambda p: tuple(int(s) for s in p.parent.name.removeprefix("ClassicaX-").split(".") if s.isdigit()), reverse=True)
         candidates = (
             root.parent / "X" / "ClassicaX.exe",
             root / "X" / "ClassicaX.exe",
+            *installed,
             programs / "ClassicaX" / "ClassicaX.exe",
         )
     elif module == "youtube":
