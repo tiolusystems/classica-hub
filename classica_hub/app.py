@@ -3,9 +3,13 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tkinter as tk
 from pathlib import Path
-from tkinter import messagebox
+from tkinter import filedialog, messagebox
+
+
+MODULES = {"youtube": "Clássica.exe", "x": "ClassicaX.exe"}
 
 
 def config_path() -> Path:
@@ -17,34 +21,108 @@ def config_path() -> Path:
 def commands() -> dict:
     file = config_path()
     if not file.exists():
-        file.write_text(json.dumps({"youtube": [], "x": []}, indent=2), encoding="utf-8")
+        save_commands({"youtube": [], "x": []})
     try:
         value = json.loads(file.read_text(encoding="utf-8"))
-        return {name: value.get(name, []) for name in ("youtube", "x")}
+        return {name: value.get(name, []) for name in MODULES}
     except json.JSONDecodeError:
-        return {"youtube": [], "x": []}
+        return {name: [] for name in MODULES}
+
+
+def save_commands(value: dict) -> None:
+    file = config_path(); temporary = file.with_suffix(".tmp")
+    temporary.write_text(json.dumps({name: value.get(name, []) for name in MODULES}, indent=2), encoding="utf-8")
+    temporary.replace(file)
+
+
+def discovered(module: str) -> Path | None:
+    """Discover portable X and existing YouTube without changing either installation."""
+    local = Path(os.environ.get("LOCALAPPDATA", Path.home() / ".local"))
+    programs = local / "Programs"
+    if module == "x":
+        # When extracted from the homologation ZIP, Hub and X are siblings.
+        root = Path(sys.executable).resolve().parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parents[1]
+        versions = programs / "ClassicaX" / "versoes"
+        installed = list(versions.glob("ClassicaX-*/ClassicaX.exe")) if versions.is_dir() else []
+        installed.sort(key=lambda p: tuple(int(s) for s in p.parent.name.removeprefix("ClassicaX-").split(".") if s.isdigit()), reverse=True)
+        candidates = (
+            root.parent / "X" / "ClassicaX.exe",
+            root / "X" / "ClassicaX.exe",
+            *installed,
+            programs / "ClassicaX" / "ClassicaX.exe",
+        )
+    elif module == "youtube":
+        versions = programs / "Classica" / "versoes"
+        installed = list(versions.glob("Classica-*/Clássica.exe")) if versions.is_dir() else []
+        def version_key(candidate: Path) -> tuple[int, ...]:
+            try:
+                return tuple(int(part) for part in candidate.parent.name.removeprefix("Classica-").split("."))
+            except ValueError:
+                return (0,)
+        installed.sort(key=version_key, reverse=True)
+        candidates = (programs / "Classica" / "Clássica.exe", *installed)
+    else:
+        raise ValueError("Módulo desconhecido.")
+    return next((path.resolve() for path in candidates if path.is_file()), None)
+
+
+def configure(module: str, executable: str | Path) -> Path:
+    path = Path(executable).expanduser().resolve()
+    if not path.is_file() or not path.is_absolute():
+        raise ValueError("Selecione um executável de módulo existente.")
+    value = commands(); value[module] = [str(path)]; save_commands(value)
+    return path
+
+
+def configured_path(module: str) -> Path | None:
+    command = commands()[module]
+    if isinstance(command, list) and command and isinstance(command[0], str):
+        candidate = Path(command[0]).expanduser()
+        if candidate.is_absolute() and candidate.is_file():
+            return candidate
+    return discovered(module)
 
 
 def launch(module: str) -> None:
-    command = commands()[module]
-    if not isinstance(command, list) or not command or not all(isinstance(x, str) for x in command):
-        raise ValueError(f"Configure o comando do módulo {module} em {config_path()}.")
-    executable = Path(command[0])
-    if not executable.is_file():
-        raise ValueError(f"Módulo {module} não encontrado: {executable}")
-    subprocess.Popen(command, shell=False, cwd=str(executable.parent))
+    executable = configured_path(module)
+    if not executable:
+        raise ValueError(f"O módulo {module} ainda não foi localizado.")
+    subprocess.Popen([str(executable)], shell=False, cwd=str(executable.parent))
+
+
+def choose_module(module: str) -> Path | None:
+    path = filedialog.askopenfilename(title=f"Localizar {module}", filetypes=[("Aplicativo Windows", "*.exe")])
+    return configure(module, path) if path else None
 
 
 def main() -> None:
-    root = tk.Tk(); root.title("Clássica Hub — ☧ SYSTEMS"); root.geometry("420x230"); root.resizable(False, False)
-    tk.Label(root, text="Clássica", font=("Segoe UI", 24, "bold")).pack(pady=(30, 4))
-    tk.Label(root, text="Escolha um aplicativo independente").pack(pady=(0, 18))
+    root = tk.Tk(); root.title("Clássica Hub — ☧ SYSTEMS"); root.geometry("470x300"); root.resizable(False, False)
+    tk.Label(root, text="Clássica", font=("Segoe UI", 24, "bold")).pack(pady=(24, 2))
+    tk.Label(root, text="Escolha, instale ou localize um aplicativo independente.").pack(pady=(0, 12))
+    status = tk.StringVar()
+    def refresh():
+        found = [name for name in MODULES if configured_path(name)]
+        status.set("Módulos localizados: " + (", ".join(found) if found else "nenhum"))
     def pressed(name):
-        try: launch(name)
+        try:
+            if not configured_path(name):
+                if not choose_module(name): return
+            launch(name)
         except ValueError as exc: messagebox.showerror("Módulo indisponível", str(exc))
-    tk.Button(root, text="YouTube", width=28, command=lambda: pressed("youtube")).pack(pady=4)
-    tk.Button(root, text="X", width=28, command=lambda: pressed("x")).pack(pady=4)
-    tk.Label(root, text="O Hub não atualiza nem altera os módulos.", fg="#586069").pack(pady=15)
-    root.mainloop()
+        finally: refresh()
+    def locate(name):
+        try: choose_module(name)
+        except ValueError as exc: messagebox.showerror("Localização", str(exc))
+        finally: refresh()
+    tk.Button(root, text="YouTube", width=28, command=lambda: pressed("youtube")).pack(pady=3)
+    tk.Button(root, text="X", width=28, command=lambda: pressed("x")).pack(pady=3)
+    actions = tk.Frame(root); actions.pack(pady=10)
+    tk.Button(actions, text="Localizar YouTube", command=lambda: locate("youtube")).pack(side=tk.LEFT, padx=4)
+    tk.Button(actions, text="Localizar X", command=lambda: locate("x")).pack(side=tk.LEFT, padx=4)
+    tk.Label(root, textvariable=status, fg="#586069").pack(pady=3)
+    tk.Label(root, text="A localização é salva no Hub; módulos não são copiados, atualizados ou alterados.", fg="#586069").pack(pady=4)
+    refresh(); root.mainloop()
 
-if __name__ == "__main__": main()
+
+if __name__ == "__main__":
+    main()
