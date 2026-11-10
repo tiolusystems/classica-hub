@@ -1,0 +1,98 @@
+name: Android — activate in-app updates after a verified GitHub Release
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: classica-android-manifest
+  cancel-in-progress: false
+
+jobs:
+  validate-and-publish:
+    if: startsWith(github.event.release.tag_name, 'android-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: "build-tools;35.0.0"
+      - name: Download the exact APK from this public GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.release.tag_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#android-v}"
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-rc[0-9]+)?$ ]]; then
+            echo "Invalid Android release tag: $TAG" >&2
+            exit 1
+          fi
+          NAME="Classica-Android-$VERSION.apk"
+          mkdir -p "$RUNNER_TEMP/classica-android-release"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$NAME" --dir "$RUNNER_TEMP/classica-android-release" --clobber
+          test -s "$RUNNER_TEMP/classica-android-release/$NAME"
+          printf 'APK_PATH=%s\n' "$RUNNER_TEMP/classica-android-release/$NAME" >> "$GITHUB_ENV"
+          printf 'APK_VERSION=%s\n' "$VERSION" >> "$GITHUB_ENV"
+          printf 'APK_NAME=%s\n' "$NAME" >> "$GITHUB_ENV"
+      - name: Validate signature, package, version, monotonic code and SHA-256
+        shell: bash
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          RELEASE_BODY: ${{ github.event.release.body }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os, pathlib, re, subprocess, sys
+          import urllib.parse
+          apk = pathlib.Path(os.environ["APK_PATH"])
+          version = os.environ["APK_VERSION"]
+          tag = os.environ["TAG"]
+          aapt = pathlib.Path(os.environ["ANDROID_HOME"]) / "build-tools" / "35.0.0" / "aapt"
+          apksigner = pathlib.Path(os.environ["ANDROID_HOME"]) / "build-tools" / "35.0.0" / "apksigner"
+          pkg = subprocess.run([str(aapt), "dump", "badging", str(apk)], text=True, capture_output=True, check=True).stdout
+          match = re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'", pkg)
+          if not match:
+              sys.exit("Android package metadata missing")
+          app_id, code_str, actual_version = match.groups()
+          if app_id != "systems.classica.android" or actual_version != version or not code_str.isdigit():
+              sys.exit(f"Incorrect package/version: {app_id} {actual_version} {code_str}")
+          code = int(code_str)
+          old = json.loads(pathlib.Path("updates/android/latest.json").read_text(encoding="utf-8"))
+          if code <= int(old.get("versionCode", 0)):
+              sys.exit(f"Refusing rollback or repeated versionCode {code}")
+          signature = subprocess.run([str(apksigner), "verify", "--verbose", "--print-certs", str(apk)],
+                                     text=True, capture_output=True, check=True).stdout
+          if not re.search(r"Verified using v2 scheme .*?: true", signature, re.I):
+              sys.exit("Android APK signature v2 not verified")
+          cert = re.search(r"Signer #1 certificate SHA-256 digest:\s*([0-9a-f]{64})", signature, re.I)
+          expected_cert = "9d6fb53e3a73557af0a49e2ea5ce14585a94dbb987fbfcdc477d999972df6ad9"
+          if not cert or cert.group(1).lower() != expected_cert:
+              sys.exit("Release signing certificate differs from installed Clássica")
+          size = apk.stat().st_size
+          if size <= 0 or size > 512*1024*1024:
+              sys.exit("APK size invalid")
+          sha256 = hashlib.file_digest(apk.open("rb"), "sha256").hexdigest()
+          notes = os.environ.get("RELEASE_BODY", "").strip()[:400] or "Correções e melhorias."
+          data = {"schema": 1, "channel": "stable", "versionCode": code, "versionName": version,
+                  "apkUrl": f"https://github.com/tiolusystems/classica-hub/releases/download/{tag}/Classica-Android-{version}.apk",
+                  "sha256": sha256, "sizeBytes": size, "notes": notes}
+          path = pathlib.Path("updates/android/latest.json")
+          path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+          print("RELEASE_VERIFIED", data["versionName"], data["versionCode"], data["sha256"])
+          PY
+      - name: Publish update manifest only after APK validation
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add updates/android/latest.json
+          git commit -m "Android: announce verified $APK_VERSION release"
+          git push origin HEAD:main
