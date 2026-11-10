@@ -6,5 +6,5 @@
   "apkUrl": "https://github.com/tiolusystems/classica-hub/releases/download/android-v0.1.6-rc1/Classica-Android-0.1.6-rc1.apk",
   "sha256": "a555b4b361a2801a1a33c6adf248316ebd925d00fce87c9f63c95d676ba6b754",
   "sizeBytes": 130358437,
-  "notes": "Clássica Android 0.1.6-rc1 — versão candidata para distribuição direta.\n\nInclui suporte a links de vídeo de publicações do X. O APK é assinado com o certificado de release da Clássica Android.\n\nSHA-256: `a555b4b361a2801a1a33c6adf248316ebd925d00fce87c9f63c95d676ba6b754`"
+  "notes": "Agora você pode baixar vídeos de links de publicações do X."
 }
