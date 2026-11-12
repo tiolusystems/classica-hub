@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      GH_TOKEN: $${{ github.token }}
+      GH_TOKEN: ${{ github.token }}
       TAG: android-v0.1.7-rc1
       OLD_TAG: android-v0.1.6-rc1
       OLD_APK: Classica-Android-0.1.6-rc1.apk
