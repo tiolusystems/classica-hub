@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "channel": "stable",
-  "versionCode": 7,
-  "versionName": "0.1.6-rc1",
-  "apkUrl": "https://github.com/tiolusystems/classica-hub/releases/download/android-v0.1.6-rc1/Classica-Android-0.1.6-rc1.apk",
-  "sha256": "a555b4b361a2801a1a33c6adf248316ebd925d00fce87c9f63c95d676ba6b754",
-  "sizeBytes": 130358437,
-  "notes": "Agora você pode baixar vídeos de links de publicações do X."
+  "versionCode": 8,
+  "versionName": "0.1.7-rc1",
+  "apkUrl": "https://github.com/tiolusystems/classica-hub/releases/download/android-v0.1.7-rc1/Classica-Android-0.1.7-rc1.apk",
+  "sha256": "de66083c76192fd6f1d2e37ea11edd7a9722b07048afea2257c86a73ea755505",
+  "sizeBytes": 130362533,
+  "notes": "Melhor preservação dos nomes de arquivos, metadados e capas quando disponíveis."
 }
