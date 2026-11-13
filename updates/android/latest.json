@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "channel": "stable",
-  "versionCode": 9,
-  "versionName": "0.1.8-rc1",
-  "apkUrl": "https://github.com/tiolusystems/classica-hub/releases/download/android-v0.1.8-rc1/Classica-Android-0.1.8-rc1.apk",
-  "sha256": "7ed4a4c38a3f36777a8a11d02a6b487eb4144050c389caff34ebd00683901746",
-  "sizeBytes": 130391205,
-  "notes": "Progresso real de transferência, indicação das etapas finais e conclusão somente após validar e publicar o arquivo. Preserva histórico, nomes, metadados e capas."
+  "versionCode": 10,
+  "versionName": "0.1.9-rc1",
+  "apkUrl": "https://github.com/tiolusystems/classica-hub/releases/download/android-v0.1.9-rc1/Classica-Android-0.1.9-rc1.apk",
+  "sha256": "cb149ecbac6f6ea42f5f66f1ad128b8db9b9ee99ac3d9d291ed64349c4ab4597",
+  "sizeBytes": 130411685,
+  "notes": "Nova opção Limpar fila e histórico: remove registros concluídos, falhos e pendentes, preserva downloads em andamento e todos os arquivos já salvos."
 }
