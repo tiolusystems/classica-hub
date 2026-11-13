@@ -1,0 +1,104 @@
+name: Clássica Android — publish verified 0.1.8-rc1 signed APK
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish-android-017-from-verified-patch.yml
+      - updates/android/patches/Classica-Android-0.1.8-rc1.zstpatch.b64
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: classica-android-release-017
+  cancel-in-progress: false
+
+jobs:
+  reconstruct-verify-publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: android-v0.1.8-rc1
+      OLD_TAG: android-v0.1.7-rc1
+      OLD_APK: Classica-Android-0.1.7-rc1.apk
+      NEW_APK: Classica-Android-0.1.8-rc1.apk
+      OLD_SHA: de66083c76192fd6f1d2e37ea11edd7a9722b07048afea2257c86a73ea755505
+      PATCH_SHA: c7656d4b8dcf553e90ac1312d84ba9d5c69467db432e642400eb18bb94c120d7
+      NEW_SHA: 7ed4a4c38a3f36777a8a11d02a6b487eb4144050c389caff34ebd00683901746
+      CERT_SHA: 9d6fb53e3a73557af0a49e2ea5ce14585a94dbb987fbfcdc477d999972df6ad9
+      NEW_VERSION: 0.1.8-rc1
+      NEW_CODE: '9'
+    steps:
+      - name: Checkout public release repository
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Install Android verifier utilities
+        uses: android-actions/setup-android@v3
+        with:
+          packages: "build-tools;35.0.0"
+
+      - name: Reconstruct exact signed APK using public previous APK plus verified delta
+        shell: bash
+        run: |
+          set -euo pipefail
+          command -v zstd >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y zstd; }
+          mkdir -p "$RUNNER_TEMP/classica-release-017"
+          cd "$RUNNER_TEMP/classica-release-017"
+          gh release download "$OLD_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$OLD_APK" --dir . --clobber
+          printf '%s  %s\n' "$OLD_SHA" "$OLD_APK" | sha256sum -c -
+          base64 -d "$GITHUB_WORKSPACE/updates/android/patches/Classica-Android-0.1.8-rc1.zstpatch.b64" > patch.zst
+          printf '%s  patch.zst\n' "$PATCH_SHA" | sha256sum -c -
+          zstd -d --patch-from="$OLD_APK" patch.zst -o "$NEW_APK"
+          printf '%s  %s\n' "$NEW_SHA" "$NEW_APK" | sha256sum -c -
+          test "$(stat -c %s "$NEW_APK")" = "130391205"
+          printf 'NEW_APK_PATH=%s/%s\n' "$PWD" "$NEW_APK" >> "$GITHUB_ENV"
+          echo 'RECONSTRUCTION_EXACT_SHA256_PASS'
+
+      - name: Reject mismatched package, version, code and signing certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,re,subprocess,sys
+          apk=os.environ['NEW_APK_PATH']
+          sdk=os.environ['ANDROID_HOME']+'/build-tools/35.0.0/'
+          badging=subprocess.run([sdk+'aapt','dump','badging',apk],check=True,capture_output=True,text=True).stdout
+          m=re.search(r"package: name='([^']+)' versionCode='([^']+)' versionName='([^']+)'",badging)
+          if not m or m.groups()!=('systems.classica.android',os.environ['NEW_CODE'],os.environ['NEW_VERSION']):
+              sys.exit('FAIL: package ID, versionCode or versionName mismatch')
+          v=subprocess.run([sdk+'apksigner','verify','--verbose','--print-certs',apk],check=True,capture_output=True,text=True).stdout
+          if 'Verified using v2 scheme (APK Signature Scheme v2): true' not in v:
+              sys.exit('FAIL: APK signature v2 verification')
+          cert=re.findall(r'Signer #1 certificate SHA-256 digest:\s*([0-9a-f]{64})',v,re.I)
+          if [x.lower() for x in cert]!=[os.environ['CERT_SHA']]:
+              sys.exit('FAIL: signing certificate differs from installed Clássica')
+          print('APK_SECURITY_PASS',os.environ['NEW_VERSION'],os.environ['NEW_CODE'],os.environ['NEW_SHA'])
+          PY
+
+      - name: Publish signed APK to GitHub Release if and only if validation passed
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release tag already exists. Do not overwrite existing release automatically." >&2
+            exit 1
+          fi
+          gh release create "$TAG" "$NEW_APK_PATH" --repo "$GITHUB_REPOSITORY" \
+            --title "Clássica Android 0.1.8-rc1" --prerelease \
+            --notes "Melhora o progresso real, identifica a finalização do download e conclui somente após a validação e gravação, preservando nomes, metadados e capas. APK release assinado com o mesmo certificado da versão 0.1.7-rc1. SHA-256: $NEW_SHA. Instalação requer confirmação no Android."
+          echo 'GITHUB_RELEASE_CREATE_PASS'
+
+      - name: Verify published release asset size and digest
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq \
+            '.assets[] | select(.name == "Classica-Android-0.1.8-rc1.apk") | [.size,.digest,.state] | @tsv' > release_asset.tsv
+          test "$(wc -l < release_asset.tsv)" -eq 1
+          awk -F '\t' -v want_sha="sha256:$NEW_SHA" '($1==130391205 && $2==want_sha && $3=="uploaded"){ok=1} END {exit !ok}' release_asset.tsv
+          echo 'SIGNED_RELEASE_ASSET_VERIFIED'
