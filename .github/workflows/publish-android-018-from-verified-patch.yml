@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/publish-android-017-from-verified-patch.yml
+      - .github/workflows/publish-android-018-from-verified-patch.yml
       - updates/android/patches/Classica-Android-0.1.8-rc1.zstpatch.b64
   workflow_dispatch:
 
@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: classica-android-release-017
+  group: classica-android-release-018
   cancel-in-progress: false
 
 jobs:
@@ -47,8 +47,8 @@ jobs:
         run: |
           set -euo pipefail
           command -v zstd >/dev/null || { sudo apt-get update -qq; sudo apt-get install -y zstd; }
-          mkdir -p "$RUNNER_TEMP/classica-release-017"
-          cd "$RUNNER_TEMP/classica-release-017"
+          mkdir -p "$RUNNER_TEMP/classica-release-018"
+          cd "$RUNNER_TEMP/classica-release-018"
           gh release download "$OLD_TAG" --repo "$GITHUB_REPOSITORY" --pattern "$OLD_APK" --dir . --clobber
           printf '%s  %s\n' "$OLD_SHA" "$OLD_APK" | sha256sum -c -
           base64 -d "$GITHUB_WORKSPACE/updates/android/patches/Classica-Android-0.1.8-rc1.zstpatch.b64" > patch.zst
