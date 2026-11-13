@@ -1,10 +1,10 @@
 {
   "schema": 1,
   "channel": "stable",
-  "versionCode": 8,
-  "versionName": "0.1.7-rc1",
-  "apkUrl": "https://github.com/tiolusystems/classica-hub/releases/download/android-v0.1.7-rc1/Classica-Android-0.1.7-rc1.apk",
-  "sha256": "de66083c76192fd6f1d2e37ea11edd7a9722b07048afea2257c86a73ea755505",
-  "sizeBytes": 130362533,
-  "notes": "Melhor preservação dos nomes de arquivos, metadados e capas quando disponíveis."
+  "versionCode": 9,
+  "versionName": "0.1.8-rc1",
+  "apkUrl": "https://github.com/tiolusystems/classica-hub/releases/download/android-v0.1.8-rc1/Classica-Android-0.1.8-rc1.apk",
+  "sha256": "7ed4a4c38a3f36777a8a11d02a6b487eb4144050c389caff34ebd00683901746",
+  "sizeBytes": 130391205,
+  "notes": "Progresso real de transferência, indicação das etapas finais e conclusão somente após validar e publicar o arquivo. Preserva histórico, nomes, metadados e capas."
 }
